@@ -28,11 +28,17 @@ func main() {
 		"http://localhost:9090",
 	)
 	logger.Info("📡 Prometheus client ready", "url", "http://localhost:9090")
+	
+	lokiClient := controller.NewLokiClient(
+		"http://localhost:3100",
+	)
+	logger.Info("📡 Loki client ready", "url", "http://localhost:3100")
 
 	// IRIS controller register karo — Prometheus saath mein do
 	if err := (&controller.IrisReconciler{
 		Client:     mgr.GetClient(),
 		Prometheus: prometheusClient, // ← nayi addition
+		Loki:       lokiClient,       // ← nayi addition
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error(err, "Failed to setup controller")
 		os.Exit(1)

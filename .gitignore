@@ -1,0 +1,35 @@
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go binary (compiled output)
+iris
+
+# Dependency directory
+vendor/
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment variables — SECRETS YAHAN HONGE BAAD MEIN
+.env
+.env.local
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -10,10 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// IrisReconciler — ab Prometheus client bhi hai andar
 type IrisReconciler struct {
 	client.Client
-	Prometheus *PrometheusClient // ← nayi addition
+	Prometheus *PrometheusClient
+	Loki       *LokiClient // ← nayi addition
 }
 
 func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -32,7 +33,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Step 2: Failure check karo
 	if available == 0 && desired > 0 {
-		logger.Info("🚨 FAILURE DETECTED — fetching metrics...",
+		logger.Info("🚨 FAILURE DETECTED",
 			"deployment", name,
 			"namespace", namespace,
 		)
@@ -41,7 +42,6 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		metrics, err := r.Prometheus.FetchDeploymentMetrics(ctx, name, namespace)
 		if err != nil {
 			logger.Error(err, "Prometheus se metrics nahi mili")
-			// Error aaya toh bhi continue karo — metrics optional hain abhi
 		} else {
 			logger.Info("📊 METRICS COLLECTED",
 				"deployment", name,
@@ -51,8 +51,26 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			)
 		}
 
+		// Step 4: Loki se logs laao
+		logs, err := r.Loki.FetchErrorLogs(ctx, name, namespace, 5*time.Minute)
+		if err != nil {
+			logger.Error(err, "Loki se logs nahi mile")
+		} else if len(logs) == 0 {
+			logger.Info("📋 NO ERROR LOGS FOUND",
+				"deployment", name,
+			)
+		} else {
+			logger.Info("📋 ERROR LOGS COLLECTED",
+				"deployment", name,
+				"total_logs", len(logs),
+			)
+			// Har log line print karo
+			for i, logLine := range logs {
+				logger.Info(fmt.Sprintf("  LOG %d: %s", i+1, logLine))
+			}
+		}
+
 		// Baad mein yahan aayega:
-		// → logs fetch (Day 3)
 		// → AI analysis (Day 7)
 		// → rollback (Day 4)
 
