@@ -10,23 +10,29 @@ import (
 )
 
 func main() {
-	// Logger setup — terminal pe logs dikhenge
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	logger := ctrl.Log.WithName("iris")
 	logger.Info("🚀 IRIS starting up...")
 
-	// Manager = IRIS ka heart
-	// Ye K8s se connect karta hai aur controllers run karta hai
+	// Manager banao
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{})
 	if err != nil {
 		logger.Error(err, "Failed to create manager")
 		os.Exit(1)
 	}
 
-	// IRIS controller register karo
+	// Prometheus client banao
+	// Port forward chal raha hai — localhost:9090
+	prometheusClient := controller.NewPrometheusClient(
+		"http://localhost:9090",
+	)
+	logger.Info("📡 Prometheus client ready", "url", "http://localhost:9090")
+
+	// IRIS controller register karo — Prometheus saath mein do
 	if err := (&controller.IrisReconciler{
-		Client: mgr.GetClient(),
+		Client:     mgr.GetClient(),
+		Prometheus: prometheusClient, // ← nayi addition
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error(err, "Failed to setup controller")
 		os.Exit(1)
@@ -34,7 +40,6 @@ func main() {
 
 	logger.Info("👁️  Watching deployments...")
 
-	// Start karo — ye forever chalega
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		logger.Error(err, "Manager failed")
 		os.Exit(1)
