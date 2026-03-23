@@ -14,8 +14,8 @@ import (
 type IrisReconciler struct {
 	client.Client
 	Prometheus *PrometheusClient
-	Loki       *LokiClient // ← nayi addition
-	ArgoCD     *ArgoCDClient // ← nayi addition
+	Loki       *LokiClient 
+	ArgoCD     *ArgoCDClient
 }
 
 func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
