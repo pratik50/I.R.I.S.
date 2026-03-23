@@ -15,6 +15,7 @@ type IrisReconciler struct {
 	client.Client
 	Prometheus *PrometheusClient
 	Loki       *LokiClient // ← nayi addition
+	ArgoCD     *ArgoCDClient // ← nayi addition
 }
 
 func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -70,9 +71,26 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			}
 		}
 
-		// Baad mein yahan aayega:
-		// → AI analysis (Day 7)
-		// → rollback (Day 4)
+		// Step 5: Rollback trigger karo
+		logger.Info("🔄 Triggering rollback via ArgoCD...",
+			"deployment", name,
+		)
+
+		if err := r.ArgoCD.RollbackApp(ctx, "sample-app"); err != nil {
+			logger.Error(err, "Rollback failed")
+		} else {
+			logger.Info("✅ ROLLBACK TRIGGERED SUCCESSFULLY",
+				"deployment", name,
+			)
+
+			// Status check karo
+			status, err := r.ArgoCD.GetAppStatus(ctx, "sample-app")
+			if err == nil {
+				logger.Info("📊 App status after rollback",
+					"status", status,
+				)
+			}
+		}
 
 	} else {
 		logger.Info("✅ Deployment healthy",

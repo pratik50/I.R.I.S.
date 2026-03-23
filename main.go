@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/joho/godotenv"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -10,35 +11,44 @@ import (
 )
 
 func main() {
+
+	// load .env file 
+	_ = godotenv.Load()
+
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	logger := ctrl.Log.WithName("iris")
 	logger.Info("🚀 IRIS starting up...")
 
-	// Manager banao
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{})
 	if err != nil {
 		logger.Error(err, "Failed to create manager")
 		os.Exit(1)
 	}
 
-	// Prometheus client banao
-	// Port forward chal raha hai — localhost:9090
-	prometheusClient := controller.NewPrometheusClient(
-		"http://localhost:9090",
-	)
+	// Prometheus client
+	prometheusClient := controller.NewPrometheusClient("http://localhost:9090")
 	logger.Info("📡 Prometheus client ready", "url", "http://localhost:9090")
-	
-	lokiClient := controller.NewLokiClient(
-		"http://localhost:3100",
-	)
-	logger.Info("📡 Loki client ready", "url", "http://localhost:3100")
 
-	// IRIS controller register karo — Prometheus saath mein do
+	// Loki client
+	lokiClient := controller.NewLokiClient("http://localhost:3100")
+	logger.Info("📋 Loki client ready", "url", "http://localhost:3100")
+
+	// ArgoCD client — nayi addition
+	argoToken := os.Getenv("ARGOCD_TOKEN")
+	if argoToken == "" {
+		logger.Error(nil, "ARGOCD_TOKEN env variable missing!")
+		os.Exit(1)
+	}
+	argoClient := controller.NewArgoCDClient("http://localhost:8080", argoToken)
+	logger.Info("🔄 ArgoCD client ready", "url", "http://localhost:8080")
+
+	// IRIS controller
 	if err := (&controller.IrisReconciler{
 		Client:     mgr.GetClient(),
-		Prometheus: prometheusClient, // ← nayi addition
-		Loki:       lokiClient,       // ← nayi addition
+		Prometheus: prometheusClient,
+		Loki:       lokiClient,
+		ArgoCD:     argoClient, // ← nayi addition
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error(err, "Failed to setup controller")
 		os.Exit(1)
