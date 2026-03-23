@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: nginx:1.25  # v1 — stable version
+        image: nginx:1.27  # v1 — stable version
         ports:
         - containerPort: 80
         resources:
