@@ -20,6 +20,8 @@ spec:
       containers:
       - name: sample-app
         image: nginx:1.23
+        command: ["/bin/sh"]
+        args: ["-c", "exit 1"]
         ports:
         - containerPort: 80
         resources:
