@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
       - name: error-app
-        image: nginx:1.27
+        image: nginx:1.28
         ports:
         - containerPort: 80
         resources:
