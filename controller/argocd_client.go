@@ -3,65 +3,61 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
-	"crypto/tls"
 )
 
-// ArgoCDClient — ArgoCD se baat karne ka tool
 type ArgoCDClient struct {
 	BaseURL    string
 	Token      string
 	HTTPClient *http.Client
 }
 
-// NewArgoCDClient — naya client banao
 func NewArgoCDClient(baseURL, token string) *ArgoCDClient {
 	return &ArgoCDClient{
 		BaseURL: baseURL,
 		Token:   token,
 		HTTPClient: &http.Client{
-			// TLS skip karo — local development mein
-			// self-signed certificate hai ArgoCD ka
 			Transport: &http.Transport{
-				TLSClientConfig: tlsSkipVerify(),
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 			Timeout: 15 * time.Second,
 		},
 	}
 }
 
-// RollbackApp — app ko previous version pe rollback karo
+// RollbackApp — main function
+// Step 1: Auto-sync disable
+// Step 2: Previous version pe rollback
 func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 
-	// ArgoCD REST API endpoint
-	// POST /api/v1/applications/{name}/rollback
+	// Step 1: Auto-sync disable karo
+	// Warna ArgoCD rollback allow nahi karega
+	if err := a.disableAutoSync(ctx, appName); err != nil {
+		return fmt.Errorf("auto-sync disable failed: %w", err)
+	}
+
+	// Thoda wait karo — ArgoCD ko process karne do
+	time.Sleep(2 * time.Second)
+
+	// Step 2: Previous revision pe rollback karo
 	url := fmt.Sprintf("%s/api/v1/applications/%s/rollback", a.BaseURL, appName)
 
-	// Request body — id: 0 matlab previous revision
-	payload := map[string]interface{}{
-		"id": 0,
-	}
+	// id: 0 = previous revision
+	payload := map[string]interface{}{"id": 0}
+	body, _ := json.Marshal(payload)
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("payload marshal failed: %w", err)
-	}
-
-	// HTTP POST request banao
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
 	if err != nil {
-		return fmt.Errorf("request banane mein error: %w", err)
+		return fmt.Errorf("request error: %w", err)
 	}
-
-	// Auth token + Content-Type headers
 	req.Header.Set("Authorization", "Bearer "+a.Token)
 	req.Header.Set("Content-Type", "application/json")
 
-	// Request bhejo
 	resp, err := a.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("argocd call failed: %w", err)
@@ -69,8 +65,6 @@ func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-
-	// Success check karo
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("rollback failed: status=%d body=%s",
 			resp.StatusCode, string(respBody))
@@ -79,16 +73,53 @@ func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 	return nil
 }
 
-// GetAppStatus — app ki current status laao
-func (a *ArgoCDClient) GetAppStatus(ctx context.Context, appName string) (string, error) {
+// disableAutoSync — temporarily auto-sync band karo
+// Developer fix karke manually re-enable karega
+func (a *ArgoCDClient) disableAutoSync(ctx context.Context, appName string) error {
+	// ArgoCD patch API expects ApplicationPatchRequest with patch + patchType
+	patchURL := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
+	patchBody := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"syncPolicy": nil,
+		},
+	}
+	patchJSON, _ := json.Marshal(patchBody)
+	payload := map[string]interface{}{
+		"patch":     string(patchJSON),
+		"patchType": "merge",
+	}
+	body, _ := json.Marshal(payload)
 
+	patchReq, err := http.NewRequestWithContext(ctx, "PATCH", patchURL, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	patchReq.Header.Set("Authorization", "Bearer "+a.Token)
+	patchReq.Header.Set("Content-Type", "application/json")
+
+	patchResp, err := a.HTTPClient.Do(patchReq)
+	if err != nil {
+		return err
+	}
+	defer patchResp.Body.Close()
+
+	if patchResp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(patchResp.Body)
+		return fmt.Errorf("disable auto-sync failed: status=%d body=%s",
+			patchResp.StatusCode, string(b))
+	}
+
+	return nil
+}
+
+// GetAppStatus — rollback ke baad health check
+func (a *ArgoCDClient) GetAppStatus(ctx context.Context, appName string) (string, error) {
 	url := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-
 	req.Header.Set("Authorization", "Bearer "+a.Token)
 
 	resp, err := a.HTTPClient.Do(req)
@@ -110,8 +141,4 @@ func (a *ArgoCDClient) GetAppStatus(ctx context.Context, appName string) (string
 	}
 
 	return result.Status.Health.Status, nil
-}
-
-func tlsSkipVerify() *tls.Config {
-	return &tls.Config{InsecureSkipVerify: true}
 }

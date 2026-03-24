@@ -1,0 +1,12 @@
+applicationset:
+  enabled: false
+configs:
+  cm:
+    accounts.iris: apiKey, login
+  rbac:
+    policy.csv: |
+      p, role:iris-rollbacker, applications, get, */*, allow
+      p, role:iris-rollbacker, applications, update, */*, allow
+      p, role:iris-rollbacker, applications, sync, */*, allow
+      p, role:iris-rollbacker, applications, override, */*, allow
+      g, iris, role:iris-rollbacker

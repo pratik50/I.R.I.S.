@@ -1,4 +1,5 @@
 package controller
+
 import (
 	"context"
 	"encoding/json"
@@ -33,12 +34,38 @@ func (l *LokiClient) FetchErrorLogs(
 	duration time.Duration, // kitne time pehle tak ke logs chahiye
 ) ([]string, error) {
 
+	return l.fetchLogs(ctx, deploymentName, namespace, duration, "(?i)error|fatal|panic")
+}
+
+// FetchRecentLogs — deployment ke recent logs bina error filter ke
+func (l *LokiClient) FetchRecentLogs(
+	ctx context.Context,
+	deploymentName string,
+	namespace string,
+	duration time.Duration,
+) ([]string, error) {
+
+	return l.fetchLogs(ctx, deploymentName, namespace, duration, "")
+}
+
+func (l *LokiClient) fetchLogs(
+	ctx context.Context,
+	deploymentName string,
+	namespace string,
+	duration time.Duration,
+	filterRegex string,
+) ([]string, error) {
+
 	// LogQL query banao
 	// Matlab: "is deployment ke ERROR logs do"
 	query := fmt.Sprintf(
-		`{namespace="%s"}`,
-    	namespace,
+		`{namespace="%s",pod=~"%s-.*"}`,
+		namespace,
+		deploymentName,
 	)
+	if filterRegex != "" {
+		query = fmt.Sprintf(`%s |~ "%s"`, query, filterRegex)
+	}
 
 	// Time range set karo
 	now := time.Now()
@@ -65,6 +92,10 @@ func (l *LokiClient) FetchErrorLogs(
 		return nil, fmt.Errorf("Error calling Loki: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Loki status=%d body=%s", resp.StatusCode, string(body))
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -99,6 +130,9 @@ func (l *LokiClient) FetchErrorLogs(
 
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("Error parsing JSON: %w", err)
+	}
+	if result.Status != "success" {
+		return nil, fmt.Errorf("Loki response status=%s", result.Status)
 	}
 
 	// Sab log lines ek slice mein collect karo

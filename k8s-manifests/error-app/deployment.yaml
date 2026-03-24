@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: error-app
+  namespace: default
+  labels:
+    app: error-app
+  annotations:
+    iris.argoproj.io/app: error-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: error-app
+  template:
+    metadata:
+      labels:
+        app: error-app
+    spec:
+      containers:
+      - name: error-app
+        image: busybox
+        command:
+        - sh
+        - -c
+        - "echo 'ERROR: crash'; sleep 2; exit 1"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"

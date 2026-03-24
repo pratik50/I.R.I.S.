@@ -64,6 +64,10 @@ func (p *PrometheusClient) QueryInstant(ctx context.Context, query string) (floa
 		return 0, fmt.Errorf("prometheus call failed: %w", err)
 	}
 	defer resp.Body.Close() // response band karo baad mein
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("prometheus status=%d body=%s", resp.StatusCode, string(body))
+	}
 
 	// Response body padhो
 	body, err := io.ReadAll(resp.Body)
@@ -95,24 +99,29 @@ func (p *PrometheusClient) QueryInstant(ctx context.Context, query string) (floa
 	if err := json.Unmarshal(body, &result); err != nil {
 		return 0, fmt.Errorf("JSON parse error: %w", err)
 	}
+	if result.Status != "success" {
+		return 0, fmt.Errorf("prometheus response status=%s", result.Status)
+	}
 
 	// Koi result nahi aaya?
 	if len(result.Data.Result) == 0 {
 		return 0, nil // 0 return karo — metric nahi mili
 	}
 
-	// Value nikalo — string hai, float mein convert karo
-	valueStr, ok := result.Data.Result[0].Value[1].(string)
-	if !ok {
-		return 0, fmt.Errorf("value string nahi hai")
+	var total float64
+	for _, item := range result.Data.Result {
+		valueStr, ok := item.Value[1].(string)
+		if !ok {
+			return 0, fmt.Errorf("value string nahi hai")
+		}
+		value, err := strconv.ParseFloat(valueStr, 64)
+		if err != nil {
+			return 0, fmt.Errorf("float convert error: %w", err)
+		}
+		total += value
 	}
 
-	value, err := strconv.ParseFloat(valueStr, 64)
-	if err != nil {
-		return 0, fmt.Errorf("float convert error: %w", err)
-	}
-
-	return value, nil
+	return total, nil
 }
 
 // FetchDeploymentMetrics — deployment ki sari metrics ek saath laao
@@ -141,10 +150,9 @@ func (p *PrometheusClient) FetchDeploymentMetrics(
 	summary.AvailableReplicas = replicas
 
 	
-	// ✅ CHANGED: Query 2: CPU — last 5 min average
-	// Pod crash ho bhi toh historical data milega
+	// ✅ CHANGED: Query 2: CPU — last 5 min rate (cores)
 	cpuQuery := fmt.Sprintf(
-		`avg_over_time(container_cpu_usage_seconds_total{pod=~"%s.*",namespace="%s",container!=""}[5m])`,
+		`sum(rate(container_cpu_usage_seconds_total{pod=~"%s-.*",namespace="%s",container!=""}[5m]))`,
 		deploymentName, namespace,
 	)
 	cpu, err := p.QueryInstant(ctx, cpuQuery)
@@ -153,10 +161,9 @@ func (p *PrometheusClient) FetchDeploymentMetrics(
 	}
 	summary.CPUUsage = cpu
 
-	// ✅ CHANGED: Query 3: Memory — last 5 min ka peak
-	// Crash se pehle max memory kya thi?
+	// ✅ CHANGED: Query 3: Memory — last 5 min ka peak (sum across pods)
 	memQuery := fmt.Sprintf(
-		`max_over_time(container_memory_working_set_bytes{pod=~"%s.*",namespace="%s",container!=""}[5m])`,
+		`sum(max_over_time(container_memory_working_set_bytes{pod=~"%s-.*",namespace="%s",container!=""}[5m]))`,
 		deploymentName, namespace,
 	)
 	mem, err := p.QueryInstant(ctx, memQuery)

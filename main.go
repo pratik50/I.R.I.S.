@@ -36,12 +36,17 @@ func main() {
 
 	// ArgoCD client — nayi addition
 	argoToken := os.Getenv("ARGOCD_TOKEN")
-	if argoToken == "" {
-		logger.Error(nil, "ARGOCD_TOKEN env variable missing!")
-		os.Exit(1)
+	argoURL := os.Getenv("ARGOCD_URL")
+	if argoURL == "" {
+		argoURL = "http://localhost:8080"
 	}
-	argoClient := controller.NewArgoCDClient("http://localhost:8080", argoToken)
-	logger.Info("🔄 ArgoCD client ready", "url", "http://localhost:8080")
+	var argoClient *controller.ArgoCDClient
+	if argoToken == "" {
+		logger.Info("⏭️ ArgoCD disabled — ARGOCD_TOKEN missing")
+	} else {
+		argoClient = controller.NewArgoCDClient(argoURL, argoToken)
+		logger.Info("🔄 ArgoCD client ready", "url", argoURL)
+	}
 
 	// IRIS controller
 	if err := (&controller.IrisReconciler{
