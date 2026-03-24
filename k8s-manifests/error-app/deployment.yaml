@@ -19,11 +19,9 @@ spec:
     spec:
       containers:
       - name: error-app
-        image: busybox
-        command:
-        - sh
-        - -c
-        - "echo 'ERROR: crash'; sleep 2; exit 1"
+        image: nginx:1.27
+        ports:
+        - containerPort: 80
         resources:
           requests:
             memory: "32Mi"

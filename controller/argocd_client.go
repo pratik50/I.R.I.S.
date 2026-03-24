@@ -44,11 +44,14 @@ func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 	// Thoda wait karo — ArgoCD ko process karne do
 	time.Sleep(2 * time.Second)
 
-	// Step 2: Previous revision pe rollback karo
-	url := fmt.Sprintf("%s/api/v1/applications/%s/rollback", a.BaseURL, appName)
+	// Step 2: Previous revision id nikaalo
+	historyID, err := a.getPreviousHistoryID(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("rollback history error: %w", err)
+	}
 
-	// id: 0 = previous revision
-	payload := map[string]interface{}{"id": 0}
+	url := fmt.Sprintf("%s/api/v1/applications/%s/rollback", a.BaseURL, appName)
+	payload := map[string]interface{}{"id": historyID}
 	body, _ := json.Marshal(payload)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
@@ -71,6 +74,46 @@ func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 	}
 
 	return nil
+}
+
+func (a *ArgoCDClient) getPreviousHistoryID(ctx context.Context, appName string) (int, error) {
+	url := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+a.Token)
+
+	resp, err := a.HTTPClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return 0, fmt.Errorf("history fetch failed: status=%d body=%s", resp.StatusCode, string(b))
+	}
+
+	var result struct {
+		Status struct {
+			History []struct {
+				ID int `json:"id"`
+			} `json:"history"`
+		} `json:"status"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, err
+	}
+
+	if len(result.Status.History) < 2 {
+		return 0, fmt.Errorf("not enough history to rollback")
+	}
+
+	// Last entry is current, previous is second last.
+	return result.Status.History[len(result.Status.History)-2].ID, nil
 }
 
 // disableAutoSync — temporarily auto-sync band karo

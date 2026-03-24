@@ -132,12 +132,15 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 				"namespace", namespace,
 			)
 		} else if namespace == "default" {
-			appName := name
-			if deployment.Annotations != nil {
-				if v, ok := deployment.Annotations["iris.argoproj.io/app"]; ok && v != "" {
-					appName = v
-				}
+			if deployment.Annotations == nil || deployment.Annotations["iris.argoproj.io/app"] == "" {
+				logger.Info("⏭️ Rollback skipped — ArgoCD app annotation missing",
+					"deployment", name,
+					"namespace", namespace,
+				)
+				return ctrl.Result{}, nil
 			}
+
+			appName := deployment.Annotations["iris.argoproj.io/app"]
 
 			logger.Info("🔄 Triggering rollback via ArgoCD...",
 				"deployment", name,
