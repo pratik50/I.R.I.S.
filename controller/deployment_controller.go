@@ -55,14 +55,25 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Step 2: Failure check karo
 	if failure {
+		// ← SIRF YE BLOCK BADLA HAI
 		if deployment.Status.UpdatedReplicas < desired {
-			logger.Info("⏳ Rollout in progress — skipping rollback",
-				"deployment", name,
-				"namespace", namespace,
-				"desired", desired,
-				"updated", deployment.Status.UpdatedReplicas,
-			)
-			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			// Naya pod crash kar raha hai during rollout?
+			if deployment.Status.UnavailableReplicas > 0 {
+				logger.Info("💥 New pods crashing during rollout — will rollback!",
+					"deployment", name,
+					"namespace", namespace,
+					"unavailable", deployment.Status.UnavailableReplicas,
+				)
+				// Aage badho — rollback karenge
+			} else {
+				logger.Info("⏳ Rollout in progress — skipping rollback",
+					"deployment", name,
+					"namespace", namespace,
+					"desired", desired,
+					"updated", deployment.Status.UpdatedReplicas,
+				)
+				return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+			}
 		}
 
 		logger.Info("🚨 FAILURE DETECTED",
@@ -138,7 +149,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			}
 		}
 
-		// Step 5: AI Analysis ← NAYI ADDITION
+		// Step 5: AI Analysis
 		var analysis *AIAnalysis
 		if metrics != nil {
 			logger.Info("🤖 Analyzing with AI...", "deployment", name)
@@ -157,7 +168,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			}
 		}
 
-		// Step 6: ArgoCD rollback (optional)
+		// Step 6: ArgoCD rollback
 		if r.ArgoCD == nil {
 			logger.Info("⏭️ Rollback skipped — ArgoCD client not configured",
 				"deployment", name,
@@ -182,7 +193,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 			}
 
-			// AI ne rollback recommend kiya? ← NAYI ADDITION
+			// AI ne rollback recommend kiya?
 			if analysis != nil && analysis.RiskScore < 0.8 {
 				logger.Info("👀 AI says monitor only — skipping rollback",
 					"deployment", name,
