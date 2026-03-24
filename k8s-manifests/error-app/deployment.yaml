@@ -19,11 +19,7 @@ spec:
     spec:
       containers:
       - name: error-app
-        image: nginx:1.28
-        command:
-        - sh
-        - -c
-        - "echo 'ERROR: crash v2'; sleep 2; exit 1"
+        image: nginx:1.27
         ports:
         - containerPort: 80
         resources:
