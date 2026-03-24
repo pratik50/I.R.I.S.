@@ -153,7 +153,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		var analysis *AIAnalysis
 		if metrics != nil {
 			logger.Info("🤖 Analyzing with AI...", "deployment", name)
-			aiResult, err := r.AI.Analyze(ctx, name, namespace, metrics, logs)
+			aiResult, err := r.AI.Analyze(ctx, name, namespace, metrics, logs, events)
 			if err != nil {
 				logger.Error(err, "AI analysis failed")
 			} else {

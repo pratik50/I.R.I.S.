@@ -42,12 +42,19 @@ func (a *AIClient) Analyze(
 	namespace string,
 	metrics *MetricsSummary,
 	logs []string,
+	events []string,
 ) (*AIAnalysis, error) {
 
 	// Logs ko ek string mein join karo
 	logsText := "No logs available"
 	if len(logs) > 0 {
 		logsText = strings.Join(logs, "\n")
+	}
+
+	// Events ko ek string mein join karo
+	eventsText := "No events available"
+	if len(events) > 0 {
+		eventsText = strings.Join(events, "\n")
 	}
 
 	// User prompt — AI ko sab data denge
@@ -63,6 +70,9 @@ Metrics:
 - Memory Usage: %.2f MB
 
 Recent Error Logs:
+%s
+
+Kubernetes Events:
 %s
 
 Respond ONLY with this JSON format, no other text:
@@ -84,6 +94,7 @@ Rules:
 		metrics.CPUUsage,
 		metrics.MemoryMB(),
 		logsText,
+		eventsText,
 	)
 
 	// Groq API request body
