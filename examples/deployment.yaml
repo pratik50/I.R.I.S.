@@ -19,7 +19,9 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: nginx:1.25
+        image: nginx:1.27
+        command: ["sh", "-c"]
+        args: ["echo crash && exit 1"]
         ports:
         - containerPort: 80
         resources:
