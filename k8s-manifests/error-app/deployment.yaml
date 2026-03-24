@@ -25,11 +25,6 @@ spec:
       containers:
       - name: error-app
         image: nginx:1.28
-        command:
-        - sh
-        - -c
-        args:
-        - echo "crash" && exit 1
         ports:
         - containerPort: 80
         resources:
