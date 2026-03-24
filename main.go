@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,10 +51,12 @@ func main() {
 
 	// IRIS controller
 	if err := (&controller.IrisReconciler{
-		Client:     mgr.GetClient(),
-		Prometheus: prometheusClient,
-		Loki:       lokiClient,
-		ArgoCD:     argoClient, // ← nayi addition
+		Client:           mgr.GetClient(),
+		Prometheus:       prometheusClient,
+		Loki:             lokiClient,
+		ArgoCD:           argoClient, // ← nayi addition
+		RollbackCooldown: 2 * time.Minute,
+		LastRollback:     make(map[string]time.Time),
 	}).SetupWithManager(mgr); err != nil {
 		logger.Error(err, "Failed to setup controller")
 		os.Exit(1)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,6 +20,9 @@ type IrisReconciler struct {
 	Prometheus *PrometheusClient
 	Loki       *LokiClient 
 	ArgoCD     *ArgoCDClient
+	RollbackCooldown time.Duration
+	LastRollback     map[string]time.Time
+	mu               sync.Mutex
 }
 
 func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -51,6 +55,16 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// Step 2: Failure check karo
 	if failure {
+		if deployment.Status.UpdatedReplicas < desired {
+			logger.Info("⏳ Rollout in progress — skipping rollback",
+				"deployment", name,
+				"namespace", namespace,
+				"desired", desired,
+				"updated", deployment.Status.UpdatedReplicas,
+			)
+			return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
+		}
+
 		logger.Info("🚨 FAILURE DETECTED",
 			"deployment", name,
 			"namespace", namespace,
@@ -142,6 +156,14 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 			appName := deployment.Annotations["iris.argoproj.io/app"]
 
+			if r.inRollbackCooldown(namespace, name) {
+				logger.Info("⏳ Rollback cooldown active — skipping",
+					"deployment", name,
+					"app", appName,
+				)
+				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+			}
+
 			logger.Info("🔄 Triggering rollback via ArgoCD...",
 				"deployment", name,
 				"app", appName,
@@ -150,6 +172,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			if err := r.ArgoCD.RollbackApp(ctx, appName); err != nil {
 				logger.Error(err, "Rollback failed")
 			} else {
+				r.markRollback(namespace, name)
 				logger.Info("✅ ROLLBACK TRIGGERED SUCCESSFULLY",
 					"deployment", name,
 					"app", appName,
@@ -177,6 +200,33 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *IrisReconciler) inRollbackCooldown(namespace, name string) bool {
+	if r.RollbackCooldown == 0 {
+		return false
+	}
+	key := namespace + "/" + name
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	last, ok := r.LastRollback[key]
+	if !ok {
+		return false
+	}
+	return time.Since(last) < r.RollbackCooldown
+}
+
+func (r *IrisReconciler) markRollback(namespace, name string) {
+	if r.RollbackCooldown == 0 {
+		return
+	}
+	key := namespace + "/" + name
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.LastRollback == nil {
+		r.LastRollback = make(map[string]time.Time)
+	}
+	r.LastRollback[key] = time.Now()
 }
 
 func (r *IrisReconciler) SetupWithManager(mgr ctrl.Manager) error {
