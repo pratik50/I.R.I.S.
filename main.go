@@ -49,12 +49,22 @@ func main() {
 		logger.Info("🔄 ArgoCD client ready", "url", argoURL)
 	}
 
+	// AI client
+	groqKey := os.Getenv("GROQ_API_KEY")
+	if groqKey == "" {
+		logger.Error(nil, "GROQ_API_KEY env variable missing!")
+		os.Exit(1)
+	}
+	aiClient := controller.NewAIClient(groqKey)
+	logger.Info("🤖 AI client ready", "model", "llama-3.1-8b-instant")
+
 	// IRIS controller
 	if err := (&controller.IrisReconciler{
 		Client:           mgr.GetClient(),
 		Prometheus:       prometheusClient,
 		Loki:             lokiClient,
 		ArgoCD:           argoClient, // ← nayi addition
+		AI:               aiClient, // ← nayi addition
 		RollbackCooldown: 2 * time.Minute,
 		LastRollback:     make(map[string]time.Time),
 	}).SetupWithManager(mgr); err != nil {

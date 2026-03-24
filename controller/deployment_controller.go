@@ -17,9 +17,10 @@ import (
 
 type IrisReconciler struct {
 	client.Client
-	Prometheus *PrometheusClient
-	Loki       *LokiClient 
-	ArgoCD     *ArgoCDClient
+	Prometheus       *PrometheusClient
+	Loki             *LokiClient
+	ArgoCD           *ArgoCDClient
+	AI               *AIClient
 	RollbackCooldown time.Duration
 	LastRollback     map[string]time.Time
 	mu               sync.Mutex
@@ -44,7 +45,6 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	progressingCond := getDeploymentCondition(deployment.Status.Conditions, appsv1.DeploymentProgressing)
 	availableCond := getDeploymentCondition(deployment.Status.Conditions, appsv1.DeploymentAvailable)
 
-	// Failure = desired > 0 and not enough available, or condition says not progressing/available.
 	failure := (desired > 0 && available < desired)
 	if progressingCond != nil && progressingCond.Status == corev1.ConditionFalse {
 		failure = true
@@ -94,7 +94,6 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 				"deployment", name,
 				"total_logs", len(logs),
 			)
-			// Har log line print karo
 			for i, logLine := range logs {
 				logger.Info(fmt.Sprintf("  LOG %d: %s", i+1, logLine))
 			}
@@ -139,7 +138,26 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			}
 		}
 
-		// Step 5: ArgoCD rollback (optional)
+		// Step 5: AI Analysis ← NAYI ADDITION
+		var analysis *AIAnalysis
+		if metrics != nil {
+			logger.Info("🤖 Analyzing with AI...", "deployment", name)
+			aiResult, err := r.AI.Analyze(ctx, name, namespace, metrics, logs)
+			if err != nil {
+				logger.Error(err, "AI analysis failed")
+			} else {
+				analysis = aiResult
+				logger.Info("🧠 AI ANALYSIS",
+					"deployment", name,
+					"root_cause", analysis.RootCause,
+					"risk_score", fmt.Sprintf("%.2f", analysis.RiskScore),
+					"action", analysis.Action,
+					"suggestion", analysis.Suggestion,
+				)
+			}
+		}
+
+		// Step 6: ArgoCD rollback (optional)
 		if r.ArgoCD == nil {
 			logger.Info("⏭️ Rollback skipped — ArgoCD client not configured",
 				"deployment", name,
@@ -162,6 +180,16 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 					"app", appName,
 				)
 				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+			}
+
+			// AI ne rollback recommend kiya? ← NAYI ADDITION
+			if analysis != nil && analysis.RiskScore < 0.8 {
+				logger.Info("👀 AI says monitor only — skipping rollback",
+					"deployment", name,
+					"risk_score", fmt.Sprintf("%.2f", analysis.RiskScore),
+					"action", analysis.Action,
+				)
+				return ctrl.Result{}, nil
 			}
 
 			logger.Info("🔄 Triggering rollback via ArgoCD...",
