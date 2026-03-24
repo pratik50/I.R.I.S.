@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: sample-app
-        image: nginx:badtag
+        image: nginx:1.23
         ports:
         - containerPort: 80
         resources:
