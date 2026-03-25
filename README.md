@@ -4,7 +4,17 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.35.0-326CE5?style=flat&logo=kubernetes)](https://kubernetes.io)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-IRIS is an intelligent Kubernetes controller that automatically detects deployment failures and triggers rollbacks via ArgoCD. It combines real-time monitoring, AI-powered root cause analysis, and automated recovery to minimize downtime.
+I.R.I.S. is an **AI-powered Kubernetes controller** that automatically detects deployment failures, performs intelligent root cause analysis, and triggers instant rollbacks via ArgoCD. It combines real-time monitoring, AI Intellegencia, and automated recovery to minimize downtime.
+
+## 🦄 What Makes I.R.I.S. Unique
+
+Unlike traditional monitoring tools that only alert you about problems, I.R.I.S. acts as your **24/7 SRE engineer** that:
+
+- **Automatically detects** deployment failures the moment they occur
+- **Analyzes root causes** using AI (Groq Llama 3.1) to understand why your deployment failed
+- **Makes intelligent decisions** - not every failure needs a rollback; I.R.I.S. evaluates risk scores to decide
+- **Triggers instant rollbacks** via ArgoCD, reducing MTTR from hours to seconds
+- **Notifies your team** with detailed analysis and recommended fixes
 
 ## 🚀 Features
 
@@ -270,9 +280,16 @@ AI considers:
 - Rollback is only triggered if the deployment is in a failed state
 
 ## 🤝 Contributing
-Contributions are welcome! Please ensure:
+	1.	Fork the repo
+	2.	Create a feature branch (git checkout -b feature-name)
+	3.	Commit changes (git commit -m "Added new feature")
+	4.	Push branch (git push origin feature-name)
+	5.	Open a Pull Request 🚀  
 
-- Code follows Go best practices
+## 🆓 End Note  
 
-- Existing functionality remains intact
+This project is **open-source and free to use**.  
+You are welcome to **modify, distribute, and learn** from it.  
+
+Made with ❤️ by **Pratik Jadhav**  
 
