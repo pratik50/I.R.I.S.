@@ -11,21 +11,21 @@ import (
 	"time"
 )
 
-// AIAnalysis — AI ka response
+// AI response
 type AIAnalysis struct {
 	RootCause  string  `json:"root_cause"`
 	RiskScore  float64 `json:"risk_score"`
-	Action     string  `json:"action"` // "rollback", "alert"
+	Action     string  `json:"action"` 		// "rollback" or "alert"
 	Suggestion string  `json:"suggestion"`
 }
 
-// AIClient — Groq API se baat karne ka tool
+// AIClient for Groq API
 type AIClient struct {
 	APIKey     string
 	HTTPClient *http.Client
 }
 
-// NewAIClient — naya client banao
+// NewAIClient 
 func NewAIClient(apiKey string) *AIClient {
 	return &AIClient{
 		APIKey: apiKey,
@@ -35,7 +35,7 @@ func NewAIClient(apiKey string) *AIClient {
 	}
 }
 
-// Analyze — metrics + logs bhejo, root cause lo
+// AiAnalyze  
 func (a *AIClient) Analyze(
 	ctx context.Context,
 	deploymentName string,
@@ -45,19 +45,19 @@ func (a *AIClient) Analyze(
 	events []string,
 ) (*AIAnalysis, error) {
 
-	// Logs ko ek string mein join karo
+	// Bind logs to string
 	logsText := "No logs available"
 	if len(logs) > 0 {
 		logsText = strings.Join(logs, "\n")
 	}
 
-	// Events ko ek string mein join karo
+	// Bind events to string
 	eventsText := "No events available"
 	if len(events) > 0 {
 		eventsText = strings.Join(events, "\n")
 	}
 
-	// User prompt — AI ko sab data denge
+	// User prompt
 	userPrompt := fmt.Sprintf(`
 Kubernetes deployment failure detected. Analyze and respond in JSON only.
 
@@ -108,7 +108,7 @@ ACTION field:
 
 	// Groq API request body
 	requestBody := map[string]interface{}{
-		"model": "llama-3.1-8b-instant", // Free + Fast
+		"model": "llama-3.1-8b-instant", 
 		"messages": []map[string]string{
 			{
 				"role":    "system",
@@ -119,7 +119,7 @@ ACTION field:
 				"content": userPrompt,
 			},
 		},
-		"temperature": 0.1, // Low = consistent responses
+		"temperature": 0.1, 
 		"max_tokens":  500,
 	}
 
@@ -158,7 +158,7 @@ ACTION field:
 			resp.StatusCode, string(respBody))
 	}
 
-	// Groq response parse karo
+	// Parse Groq response
 	var groqResp struct {
 		Choices []struct {
 			Message struct {
@@ -175,13 +175,12 @@ ACTION field:
 		return nil, fmt.Errorf("no response from groq")
 	}
 
-	// AI ka actual text response
 	aiText := groqResp.Choices[0].Message.Content
 
-	// JSON parse karo AI response se
+	// JSON parse 
 	var analysis AIAnalysis
 	if err := json.Unmarshal([]byte(aiText), &analysis); err != nil {
-		// Agar JSON parse fail ho toh default response
+		// If JSON parse fail, return this default response
 		return &AIAnalysis{
 			RootCause:  aiText,
 			RiskScore:  0.5,

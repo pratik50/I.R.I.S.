@@ -25,7 +25,7 @@ func (r *IrisReconciler) executeRollback(ctx context.Context, deployment *appsv1
 		return nil
 	}
 
-	// Get app name from annotation
+	// Get app name from annotation (this is important for rollback)
 	appName := deployment.Annotations["iris.argoproj.io/app"]
 	if appName == "" {
 		appName = name

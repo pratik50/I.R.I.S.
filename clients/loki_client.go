@@ -10,13 +10,13 @@ import (
 	"time"
 )
 
-// LokiClient — Loki se baat karne ka tool
+// LokiClient
 type LokiClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// NewLokiClient — naya client banao
+// NewLokiClient
 func NewLokiClient(baseURL string) *LokiClient {
 	return &LokiClient{
 		BaseURL: baseURL,
@@ -26,18 +26,18 @@ func NewLokiClient(baseURL string) *LokiClient {
 	}
 }
 
-// FetchErrorLogs — deployment ke last X duration ke ERROR logs laao
+// FetchErrorLogs to last X duration logs with ERROR
 func (l *LokiClient) FetchErrorLogs(
 	ctx context.Context,
 	deploymentName string,
 	namespace string,
-	duration time.Duration, // kitne time pehle tak ke logs chahiye
+	duration time.Duration, 
 ) ([]string, error) {
 
 	return l.fetchLogs(ctx, deploymentName, namespace, duration, "(?i)error|fatal|panic")
 }
 
-// FetchRecentLogs — deployment ke recent logs bina error filter ke
+// FetchRecentLogs to recent logs without ERROR filter
 func (l *LokiClient) FetchRecentLogs(
 	ctx context.Context,
 	deploymentName string,
@@ -56,8 +56,7 @@ func (l *LokiClient) fetchLogs(
 	filterRegex string,
 ) ([]string, error) {
 
-	// LogQL query banao
-	// Matlab: "is deployment ke ERROR logs do"
+	// LogQL query
 	query := fmt.Sprintf(
 		`{namespace="%s",pod=~"%s-.*"}`,
 		namespace,
@@ -67,21 +66,20 @@ func (l *LokiClient) fetchLogs(
 		query = fmt.Sprintf(`%s |~ "%s"`, query, filterRegex)
 	}
 
-	// Time range set karo
+	// Time range
 	now := time.Now()
-	start := now.Add(-duration) // duration pehle se
+	start := now.Add(-duration)
 
-	// URL banao
 	endpoint := fmt.Sprintf("%s/loki/api/v1/query_range", l.BaseURL)
 
 	params := url.Values{}
 	params.Set("query", query)
 	params.Set("start", fmt.Sprintf("%d", start.UnixNano()))
 	params.Set("end", fmt.Sprintf("%d", now.UnixNano()))
-	params.Set("limit", "20") // max 20 log lines
+	params.Set("limit", "20")
 	fullURL := endpoint + "?" + params.Encode()
 
-	// HTTP request bhejo
+	// HTTP request 
 	req, err := http.NewRequestWithContext(ctx, "GET", fullURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating request: %w", err)
@@ -102,22 +100,7 @@ func (l *LokiClient) fetchLogs(
 		return nil, fmt.Errorf("Error reading response: %w", err)
 	}
 
-
-	// Loki ka response format:
-	// {
-	//   "status": "success",
-	//   "data": {
-	//     "result": [
-	//       {
-	//         "stream": {"app": "crash-test"},
-	//         "values": [
-	//           ["timestamp", "ERROR: out of memory"],
-	//           ["timestamp", "FATAL: crash at line 42"]
-	//         ]
-	//       }
-	//     ]
-	//   }
-	// }
+	// Loki response format
 	var result struct {
 		Status string `json:"status"`
 		Data   struct {
@@ -135,7 +118,7 @@ func (l *LokiClient) fetchLogs(
 		return nil, fmt.Errorf("Loki response status=%s", result.Status)
 	}
 
-	// Sab log lines ek slice mein collect karo
+	// Collect log lines
 	var logs []string
 	for _, stream := range result.Data.Result {
 		for _, value := range stream.Values {

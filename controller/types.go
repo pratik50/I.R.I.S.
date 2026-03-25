@@ -8,6 +8,7 @@ import (
     "github.com/pratik50/iris/clients"
 )
 
+// IrisReconciler type
 type IrisReconciler struct {
     ctrlclient.Client
     Prometheus       *clients.PrometheusClient

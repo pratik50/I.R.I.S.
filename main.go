@@ -29,22 +29,34 @@ func main() {
 	}
 
 	// Prometheus client
-	prometheusClient := clients.NewPrometheusClient("http://localhost:9090")
-	logger.Info("📡 Prometheus client ready", "url", "http://localhost:9090")
+	prometheusURL := os.Getenv("PROMETHEUS_URL")
+	if prometheusURL == "" {
+		logger.Info("⏭️ Prometheus disabled: PROMETHEUS_URL missing")
+		return
+	}
+	prometheusClient := clients.NewPrometheusClient(prometheusURL)
+	logger.Info("📡 Prometheus client ready", "url", prometheusURL)
 
 	// Loki client
-	lokiClient := clients.NewLokiClient("http://localhost:3100")
-	logger.Info("📋 Loki client ready", "url", "http://localhost:3100")
+	lokiURL := os.Getenv("LOKI_URL")
+	if lokiURL == "" {
+		logger.Info("⏭️ Loki disabled: LOKI_URL missing")
+		return
+	}
+	lokiClient := clients.NewLokiClient(lokiURL)
+	logger.Info("📋 Loki client ready", "url", lokiURL)
 
-	// ArgoCD client — nayi addition
+	// ArgoCD client
 	argoToken := os.Getenv("ARGOCD_TOKEN")
 	argoURL := os.Getenv("ARGOCD_URL")
-	if argoURL == "" {
-		argoURL = "http://localhost:8080"
+	if argoURL == "" { 
+		logger.Info("⏭️ ArgoCD disabled: ARGOCD_URL missing")
+		return
 	}
+	
 	var argoClient *clients.ArgoCDClient
 	if argoToken == "" {
-		logger.Info("⏭️ ArgoCD disabled — ARGOCD_TOKEN missing")
+		logger.Info("⏭️ ArgoCD disabled: ARGOCD_TOKEN missing")
 	} else {
 		argoClient = clients.NewArgoCDClient(argoURL, argoToken)
 		logger.Info("🔄 ArgoCD client ready", "url", argoURL)
@@ -64,8 +76,8 @@ func main() {
 		Client:           mgr.GetClient(),
 		Prometheus:       prometheusClient,
 		Loki:             lokiClient,
-		ArgoCD:           argoClient, // ← nayi addition
-		AI:               aiClient, // ← nayi addition
+		ArgoCD:           argoClient, 
+		AI:               aiClient, 
 		RollbackCooldown: 2 * time.Minute,
 		LastRollback:     make(map[string]time.Time),
 	}).SetupWithManager(mgr); err != nil {

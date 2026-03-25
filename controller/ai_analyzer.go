@@ -39,7 +39,7 @@ func (r *IrisReconciler) analyzeWithAI(ctx context.Context, name, namespace stri
             RootCause:  "AI analysis failed",
             RiskScore:  0.4,
             Action:     "alert",
-            Suggestion: "Manual investigation required - AI service error",
+            Suggestion: "Manual investigation required 🚨 AI service failed",
         }, err
     }
 

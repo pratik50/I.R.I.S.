@@ -37,7 +37,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		desired = *deployment.Spec.Replicas
 	}
 
-	// If rollout is still in progress (no failure yet), wait
+	// If rollout is still in progress (no failure yet) then wait
 	if r.isRolloutInProgress(deployment, desired) {
 		logger.Info("⏳ Rollout in progress — waiting", "deployment", name)
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
@@ -53,7 +53,7 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		return ctrl.Result{}, nil
 	}
 
-	// First crash or non-crashloop failure: proceed with AI analysis
+	// First crash or non-crashloop failure then proceed with AI analysis
 	logger.Info("🤖 First crash detected - proceeding with AI analysis", "deployment", name)
 
 	// Collect data

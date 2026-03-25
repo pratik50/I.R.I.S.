@@ -30,21 +30,17 @@ func NewArgoCDClient(baseURL, token string) *ArgoCDClient {
 	}
 }
 
-// RollbackApp — main function
 // Step 1: Auto-sync disable
-// Step 2: Previous version pe rollback
+// Step 2: Rollback previous version
 func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 
-	// Step 1: Auto-sync disable karo
-	// Warna ArgoCD rollback allow nahi karega
 	if err := a.disableAutoSync(ctx, appName); err != nil {
 		return fmt.Errorf("auto-sync disable failed: %w", err)
 	}
 
-	// Thoda wait karo — ArgoCD ko process karne do
 	time.Sleep(2 * time.Second)
 
-	// Step 2: Previous revision id nikaalo
+	// Get previous revision id
 	historyID, err := a.getPreviousHistoryID(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("rollback history error: %w", err)
@@ -76,6 +72,7 @@ func (a *ArgoCDClient) RollbackApp(ctx context.Context, appName string) error {
 	return nil
 }
 
+// getPreviousHistoryID gets previous revision id (history commit simply)
 func (a *ArgoCDClient) getPreviousHistoryID(ctx context.Context, appName string) (int, error) {
 	url := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
 
@@ -112,14 +109,13 @@ func (a *ArgoCDClient) getPreviousHistoryID(ctx context.Context, appName string)
 		return 0, fmt.Errorf("not enough history to rollback")
 	}
 
-	// Last entry is current, previous is second last.
 	return result.Status.History[len(result.Status.History)-2].ID, nil
 }
 
-// disableAutoSync — temporarily auto-sync band karo
-// Developer fix karke manually re-enable karega
+// DisableAutoSync temporarily (requires for rollback)
+// Developer will need to manually re-enable
 func (a *ArgoCDClient) disableAutoSync(ctx context.Context, appName string) error {
-	// ArgoCD patch API expects ApplicationPatchRequest with patch + patchType
+
 	patchURL := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
 	patchBody := map[string]interface{}{
 		"spec": map[string]interface{}{
@@ -155,7 +151,7 @@ func (a *ArgoCDClient) disableAutoSync(ctx context.Context, appName string) erro
 	return nil
 }
 
-// GetAppStatus — rollback ke baad health check
+// GetAppStatus rollback health check
 func (a *ArgoCDClient) GetAppStatus(ctx context.Context, appName string) (string, error) {
 	url := fmt.Sprintf("%s/api/v1/applications/%s", a.BaseURL, appName)
 
