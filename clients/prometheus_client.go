@@ -1,4 +1,4 @@
-package controller
+package clients
 
 import (
 	"context"

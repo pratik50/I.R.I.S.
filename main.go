@@ -1,14 +1,15 @@
 package main
 
 import (
-	"os"
-	"time"
+	  "os"
+    "time"
 
-	"github.com/joho/godotenv"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+    "github.com/joho/godotenv"
+    ctrl "sigs.k8s.io/controller-runtime"
+    "sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/pratik50/iris/controller"
+    "github.com/pratik50/iris/clients"
+    "github.com/pratik50/iris/controller"
 )
 
 func main() {
@@ -28,11 +29,11 @@ func main() {
 	}
 
 	// Prometheus client
-	prometheusClient := controller.NewPrometheusClient("http://localhost:9090")
+	prometheusClient := clients.NewPrometheusClient("http://localhost:9090")
 	logger.Info("📡 Prometheus client ready", "url", "http://localhost:9090")
 
 	// Loki client
-	lokiClient := controller.NewLokiClient("http://localhost:3100")
+	lokiClient := clients.NewLokiClient("http://localhost:3100")
 	logger.Info("📋 Loki client ready", "url", "http://localhost:3100")
 
 	// ArgoCD client — nayi addition
@@ -41,11 +42,11 @@ func main() {
 	if argoURL == "" {
 		argoURL = "http://localhost:8080"
 	}
-	var argoClient *controller.ArgoCDClient
+	var argoClient *clients.ArgoCDClient
 	if argoToken == "" {
 		logger.Info("⏭️ ArgoCD disabled — ARGOCD_TOKEN missing")
 	} else {
-		argoClient = controller.NewArgoCDClient(argoURL, argoToken)
+		argoClient = clients.NewArgoCDClient(argoURL, argoToken)
 		logger.Info("🔄 ArgoCD client ready", "url", argoURL)
 	}
 
@@ -55,7 +56,7 @@ func main() {
 		logger.Error(nil, "GROQ_API_KEY env variable missing!")
 		os.Exit(1)
 	}
-	aiClient := controller.NewAIClient(groqKey)
+	aiClient := clients.NewAIClient(groqKey)
 	logger.Info("🤖 AI client ready", "model", "llama-3.1-8b-instant")
 
 	// IRIS controller
