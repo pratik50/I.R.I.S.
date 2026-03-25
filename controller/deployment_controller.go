@@ -151,11 +151,19 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 		// Step 5: AI Analysis
 		var analysis *AIAnalysis
-		if metrics != nil {
+
+		if r.AI != nil && metrics != nil {
 			logger.Info("🤖 Analyzing with AI...", "deployment", name)
 			aiResult, err := r.AI.Analyze(ctx, name, namespace, metrics, logs, events)
 			if err != nil {
 				logger.Error(err, "AI analysis failed")
+				// On AI failure, default to alert (no rollback)
+				analysis = &AIAnalysis{
+					RootCause:  "AI analysis failed",
+					RiskScore:  0.4,
+					Action:     "alert",
+					Suggestion: "Manual investigation required - AI service error",
+				}
 			} else {
 				analysis = aiResult
 				logger.Info("🧠 AI ANALYSIS",
@@ -166,69 +174,81 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 					"suggestion", analysis.Suggestion,
 				)
 			}
+		} else if metrics == nil {
+			// If metrics not available, still need to handle
+			logger.Info("⚠️ No metrics available for AI analysis")
+			analysis = &AIAnalysis{
+				RootCause:  "Metrics unavailable",
+				RiskScore:  0.3,
+				Action:     "alert",
+				Suggestion: "Check Prometheus connectivity",
+			}
+		} else if r.AI == nil {
+			logger.Info("⚠️ AI client not configured")
+			analysis = &AIAnalysis{
+				RootCause:  "AI client not available",
+				RiskScore:  0.3,
+				Action:     "alert",
+				Suggestion: "Configure Groq API key",
+			}
 		}
 
-		// Step 6: ArgoCD rollback
-		if r.ArgoCD == nil {
-			logger.Info("⏭️ Rollback skipped — ArgoCD client not configured",
-				"deployment", name,
-				"namespace", namespace,
-			)
-		} else if namespace == "default" {
-			if deployment.Annotations == nil || deployment.Annotations["iris.argoproj.io/app"] == "" {
-				logger.Info("⏭️ Rollback skipped — ArgoCD app annotation missing",
-					"deployment", name,
-					"namespace", namespace,
-				)
-				return ctrl.Result{}, nil
-			}
-
-			appName := deployment.Annotations["iris.argoproj.io/app"]
-
-			if r.inRollbackCooldown(namespace, name) {
-				logger.Info("⏳ Rollback cooldown active — skipping",
-					"deployment", name,
-					"app", appName,
-				)
-				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-			}
-
-			// AI ne rollback recommend kiya?
-			if analysis != nil && analysis.RiskScore < 0.8 {
-				logger.Info("👀 AI says monitor only — skipping rollback",
+		// Step 6: Decision based on Risk Score
+		if analysis != nil {
+			if analysis.RiskScore >= 0.5 {
+				// AUTO-ROLLBACK
+				logger.Info("🔴 AUTO-ROLLBACK TRIGGERED",
 					"deployment", name,
 					"risk_score", fmt.Sprintf("%.2f", analysis.RiskScore),
-					"action", analysis.Action,
+					"reason", analysis.RootCause,
 				)
-				return ctrl.Result{}, nil
-			}
+				
+				// Execute rollback
+				if r.ArgoCD == nil {
+					logger.Info("⏭️ Rollback skipped — ArgoCD client not configured")
+				} else {
+					// Check cooldown
+					if r.inRollbackCooldown(namespace, name) {
+						logger.Info("⏳ Rollback cooldown active — skipping",
+							"deployment", name,
+						)
+						return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+					}
 
-			logger.Info("🔄 Triggering rollback via ArgoCD...",
-				"deployment", name,
-				"app", appName,
-			)
+					// Get app name from annotation
+					appName := deployment.Annotations["iris.argoproj.io/app"]
+					if appName == "" {
+						appName = name
+						logger.Info("⚠️ No annotation found, using deployment name", "appName", appName)
+					}
 
-			if err := r.ArgoCD.RollbackApp(ctx, appName); err != nil {
-				logger.Error(err, "Rollback failed")
-			} else {
-				r.markRollback(namespace, name)
-				logger.Info("✅ ROLLBACK TRIGGERED SUCCESSFULLY",
-					"deployment", name,
-					"app", appName,
-				)
-
-				status, err := r.ArgoCD.GetAppStatus(ctx, appName)
-				if err == nil {
-					logger.Info("📊 App status after rollback",
-						"status", status,
+					logger.Info("🔄 Executing ArgoCD rollback...",
+						"deployment", name,
+						"app", appName,
 					)
+
+					if err := r.ArgoCD.RollbackApp(ctx, appName); err != nil {
+						logger.Error(err, "❌ Rollback failed")
+						// TODO: Send Slack alert for rollback failure
+					} else {
+						r.markRollback(namespace, name)
+						logger.Info("✅ ROLLBACK SUCCESSFUL",
+							"deployment", name,
+							"app", appName,
+						)
+						// TODO: Send Slack notification: "Auto-rollback completed"
+					}
 				}
+			} else {
+				// MANUAL DIAGNOSIS REQUIRED
+				logger.Info("⚠️ MANUAL DIAGNOSIS REQUIRED",
+					"deployment", name,
+					"risk_score", fmt.Sprintf("%.2f", analysis.RiskScore),
+					"reason", analysis.RootCause,
+					"suggestion", analysis.Suggestion,
+				)
+				// TODO: Send Slack alert: "Manual diagnosis needed"
 			}
-		} else {
-			logger.Info("⏭️ Rollback skipped — not default namespace",
-				"deployment", name,
-				"namespace", namespace,
-			)
 		}
 
 	} else {

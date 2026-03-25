@@ -15,7 +15,7 @@ import (
 type AIAnalysis struct {
 	RootCause  string  `json:"root_cause"`
 	RiskScore  float64 `json:"risk_score"`
-	Action     string  `json:"action"` // "rollback", "monitor", "alert"
+	Action     string  `json:"action"` // "rollback", "alert"
 	Suggestion string  `json:"suggestion"`
 }
 
@@ -84,9 +84,18 @@ Respond ONLY with this JSON format, no other text:
 }
 
 Rules:
-- risk_score > 0.8 = serious, needs rollback
-- risk_score 0.5-0.8 = moderate, needs alert
-- risk_score < 0.5 = minor, just monitor
+- risk_score >= 0.5 = critical, needs rollback
+- risk_score < 0.5 = minor, needs manual diagnosis
+- Container crash or CrashLoopBackOff → risk_score = 0.8
+- Memory limit exceeded → risk_score = 0.7
+- Network issues → risk_score = 0.6
+- Configuration error → risk_score = 0.5
+- Minor warnings → risk_score = 0.3
+- No issues found → risk_score = 0.1
+
+ACTION field:
+- If risk_score >= 0.5 → action = "rollback"
+- If risk_score < 0.5 → action = "alert"
 `,
 		deploymentName,
 		namespace,
