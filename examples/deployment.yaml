@@ -25,8 +25,7 @@ spec:
           - "-c"
           - |
             echo "Container started successfully";
-            sleep 30;
-            echo "Database connection failure...";
+            sleep 10;
             exit 1;
         ports:
         - containerPort: 80
