@@ -23,6 +23,14 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	name := deployment.Name
 	namespace := deployment.Namespace
 
+	// Ignore non-default namespace
+	if namespace != "default" {
+        logger.V(1).Info("Ignore non-default namespace", 
+            "deployment", name, 
+            "namespace", namespace)
+        return ctrl.Result{}, nil
+    }
+
 	// Check if deployment is healthy
 	if !r.detectFailure(deployment) {
 		logger.Info("✅ Deployment healthy", "deployment", name, "available", deployment.Status.AvailableReplicas)
@@ -30,6 +38,21 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	}
 
 	logger.Info("🚨 FAILURE DETECTED", "deployment", name, "namespace", namespace)
+	
+	// Check if rollback happened recently (within cooldown)
+	if r.inRollbackCooldown(namespace, name) {
+		logger.Info("⏭️ Skipping notifications - rollback recently performed", 
+			"deployment", name)
+		return ctrl.Result{}, nil
+	}
+
+	restartCount := r.getRestartCount(ctx, deployment)
+
+	if r.Slack != nil {
+		if err := r.Slack.SendCrashDetected(name, namespace, restartCount); err != nil {
+			logger.Error(err, "Failed to send crash detected alert")
+		}
+	}
 
 	// Determine desired replicas
 	desired := int32(1)
@@ -72,6 +95,13 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// First crash or non-crashloop failure then proceed with AI analysis
 	logger.Info("🤖 First crash detected - proceeding with AI analysis", "deployment", name)
 
+	// Send AI analyzing alert
+	if r.Slack != nil {
+		if err := r.Slack.SendAIAnalyzing(name, namespace); err != nil {
+			logger.Error(err, "Failed to send AI analyzing alert")
+		}
+	}
+
 	// Collect data
 	metrics, _ := r.collectMetrics(ctx, name, namespace)
 	logs, _ := r.collectLogs(ctx, name, namespace)
@@ -79,6 +109,12 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	// AI analysis
 	analysis, _ := r.analyzeWithAI(ctx, name, namespace, metrics, logs, events)
+
+	if analysis != nil && r.Slack != nil {
+		if err := r.Slack.SendAIDecision(name, namespace, analysis.RootCause, analysis.Suggestion, analysis.RiskScore, analysis.Action); err != nil {
+			logger.Error(err, "Failed to send AI decision alert")
+		}
+	}
 
 	// Decision based on risk score
 	if analysis != nil && analysis.RiskScore >= 0.5 {

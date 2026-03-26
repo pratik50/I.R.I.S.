@@ -180,7 +180,7 @@ func (s *SlackClient) SendManualDiagnosisRequired(deployment, namespace, rootCau
 		"Next Steps": "Manual investigation required. Check logs and metrics for details.",
 	}
 
-	return s.SendRichMessage(title, text, ":yellow_circle:", fields)
+	return s.SendRichMessage(title, text, ":large_yellow_circle:", fields)
 }
 
 // SendCrashLoopBackOffAlert sends alert for CrashLoopBackOff detection
@@ -198,6 +198,66 @@ func (s *SlackClient) SendCrashLoopBackOffAlert(deployment, namespace string, re
 	}
 
 	return s.SendRichMessage(title, text, ":red_circle:", fields)
+}
+
+// SendCrashDetected sends alert when a crash is first detected
+func (s *SlackClient) SendCrashDetected(deployment, namespace string, restartCount int) error {
+	if !s.Enabled {
+		return nil
+	}
+
+	title := "💥 Crash Detected"
+	text := fmt.Sprintf("Deployment `%s/%s` has experienced a container crash.", namespace, deployment)
+	fields := map[string]string{
+		"Restart Count": fmt.Sprintf("%d", restartCount),
+		"Status":        "Analyzing...",
+		"Next Step":     "Checking if this is CrashLoopBackOff or first-time failure",
+	}
+
+	return s.SendRichMessage(title, text, ":large_yellow_circle:", fields)
+}
+
+// SendAIAnalyzing sends alert when AI analysis begins
+func (s *SlackClient) SendAIAnalyzing(deployment, namespace string) error {
+	if !s.Enabled {
+		return nil
+	}
+
+	title := "🤖 AI Analysis Started"
+	text := fmt.Sprintf("Deployment `%s/%s` failure is being analyzed by AI.", namespace, deployment)
+	fields := map[string]string{
+		"Status":   "Analyzing metrics, logs, and events",
+		"Model":    "Llama 3.1 (8B)",
+		"Duration": "~2-3 seconds",
+	}
+
+	return s.SendRichMessage(title, text, ":robot_face:", fields)
+}
+
+// SendAIDecision sends AI analysis result
+func (s *SlackClient) SendAIDecision(deployment, namespace, rootCause, suggestion string, riskScore float64, action string) error {
+	if !s.Enabled {
+		return nil
+	}
+
+	var title, color string
+	if action == "rollback" {
+		title = "🎯 AI Decision: Rollback Required"
+		color = ":large_red_circle:"
+	} else {
+		title = "👀 AI Decision: Monitor Only"
+		color = ":large_yellow_circle:"
+	}
+
+	text := fmt.Sprintf("AI has analyzed the failure for `%s/%s`.", namespace, deployment)
+	fields := map[string]string{
+		"Risk Score":  fmt.Sprintf("%.2f", riskScore),
+		"Root Cause":  rootCause,
+		"Action":      action,
+		"Suggestion":  suggestion,
+	}
+
+	return s.SendRichMessage(title, text, color, fields)
 }
 
 // send is the internal method to actually send the message

@@ -57,3 +57,21 @@ func (r *IrisReconciler) fetchDeploymentEvents(ctx context.Context, deploymentNa
 
 	return lines, nil
 }
+
+
+// Helper function to get restart count
+func (r *IrisReconciler) getRestartCount(ctx context.Context, deployment *appsv1.Deployment) int {
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList, ctrlclient.InNamespace(deployment.Namespace),
+		ctrlclient.MatchingLabels(deployment.Spec.Selector.MatchLabels)); err != nil {
+		return 0
+	}
+	
+	totalRestarts := 0
+	for _, pod := range podList.Items {
+		for _, cs := range pod.Status.ContainerStatuses {
+			totalRestarts += int(cs.RestartCount)
+		}
+	}
+	return totalRestarts
+}

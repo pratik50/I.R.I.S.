@@ -86,11 +86,16 @@ func main() {
         }
         slackClient = clients.NewSlackClient(slackToken, slackChannel, slackEnabled)
         logger.Info("💬 Slack client ready", "channel", slackChannel)
-        
-        // Send startup message
-        if err := slackClient.SendMessage("🚀 I.R.I.S. is now online and watching deployments!"); err != nil {
-            logger.Error(err, "Failed to send Slack startup message")
-        }
+		
+		if slackClient != nil {
+			logger.Info("💬 Attempting to send Slack startup message...")  // ADD THIS
+			
+			if err := slackClient.SendMessage("🚀 I.R.I.S. is now online and watching deployments!"); err != nil {
+				logger.Error(err, "Failed to send Slack startup message (non-critical)")
+			} else {
+				logger.Info("✅ Slack startup message sent successfully!")  // ADD THIS
+			}
+		}
     } else {
         logger.Info("⏭️ Slack disabled — set SLACK_ENABLED=true to enable")
     }
