@@ -6,6 +6,9 @@
 
 I.R.I.S. is an **AI-powered Kubernetes controller** that automatically detects deployment failures, performs intelligent root cause analysis, and triggers instant rollbacks via ArgoCD. It combines real-time monitoring, AI Intellegencia, and automated recovery to minimize downtime.
 
+> **🚧 Status: Under Active Development**  
+> Core functionality (failure detection, AI analysis, ArgoCD rollback) is implemented and tested. Slack integration, enhanced observability are currently in progress and many more to go.
+
 ## 🦄 What Makes I.R.I.S. Unique
 
 Unlike traditional monitoring tools that only alert you about problems, I.R.I.S. acts as your **24/7 SRE engineer** that:
