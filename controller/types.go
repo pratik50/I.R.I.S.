@@ -16,6 +16,7 @@ type IrisReconciler struct {
     ArgoCD           *clients.ArgoCDClient
     AI               *clients.AIClient
     RollbackCooldown time.Duration
+    Slack            *clients.SlackClient
     LastRollback     map[string]time.Time
     mu               sync.Mutex
 }

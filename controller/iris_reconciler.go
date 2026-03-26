@@ -47,9 +47,25 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	if forceRollback, restartCount := r.checkCrashLoopBackOff(ctx, deployment); forceRollback {
 		logger.Info("🔴 FORCE ROLLBACK: CrashLoopBackOff detected",
 			"deployment", name, "restart_count", restartCount)
+
+		// Send Slack alert for CrashLoopBackOff
+		if r.Slack != nil {
+			if err := r.Slack.SendCrashLoopBackOffAlert(name, namespace, restartCount); err != nil {
+				logger.Error(err, "Failed to send Slack notification for CrashLoopBackOff")
+			}
+		}
+
 		if err := r.executeRollback(ctx, deployment, "CrashLoopBackOff detected"); err != nil {
 			logger.Error(err, "Rollback failed")
+			
+			// Send Slack alert for rollback failure
+			if r.Slack != nil {
+				if err := r.Slack.SendRollbackFailure(name, namespace, err.Error()); err != nil {
+					logger.Error(err, "Failed to send Slack notification for rollback failure")
+				}
+			}
 		}
+
 		return ctrl.Result{}, nil
 	}
 
@@ -72,6 +88,13 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			"reason", analysis.RootCause)
 		if err := r.executeRollback(ctx, deployment, analysis.RootCause); err != nil {
 			logger.Error(err, "Rollback failed")
+			
+			// Send Slack alert for rollback failure
+			if r.Slack != nil {
+				if err := r.Slack.SendRollbackFailure(name, namespace, err.Error()); err != nil {
+					logger.Error(err, "Failed to send Slack notification for rollback failure")
+				}
+			}
 		}
 	} else if analysis != nil {
 		logger.Info("⚠️ MANUAL DIAGNOSIS REQUIRED",
@@ -79,6 +102,13 @@ func (r *IrisReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 			"risk_score", analysis.RiskScore,
 			"reason", analysis.RootCause,
 			"suggestion", analysis.Suggestion)
+
+		// Send Slack alert for manual diagnosis
+		if r.Slack != nil {
+			if err := r.Slack.SendManualDiagnosisRequired(name, namespace, analysis.RootCause, analysis.Suggestion, analysis.RiskScore); err != nil {
+				logger.Error(err, "Failed to send Slack notification for manual diagnosis")
+			}
+		}
 	}
 
 	return ctrl.Result{}, nil

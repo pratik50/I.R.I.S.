@@ -39,6 +39,13 @@ func (r *IrisReconciler) executeRollback(ctx context.Context, deployment *appsv1
 
 	if err := r.ArgoCD.RollbackApp(ctx, appName); err != nil {
 		logger.Error(err, "❌ Rollback failed")
+
+		// Send Slack alert for rollback failure
+        if r.Slack != nil {
+            if err := r.Slack.SendRollbackFailure(name, namespace, err.Error()); err != nil {
+                logger.Error(err, "Failed to send Slack notification")
+            }
+        }
 		return err
 	}
 
@@ -46,6 +53,14 @@ func (r *IrisReconciler) executeRollback(ctx context.Context, deployment *appsv1
 	logger.Info("✅ ROLLBACK SUCCESSFUL",
 		"deployment", name,
 		"app", appName)
+
+	// Send Slack alert for successful rollback
+    if r.Slack != nil {
+        if err := r.Slack.SendRollbackSuccess(name, namespace, reason, 0.85); err != nil {
+            logger.Error(err, "Failed to send Slack notification")
+        }
+    }
+
 	return nil
 }
 

@@ -30,21 +30,23 @@ func main() {
 
 	// Prometheus client
 	prometheusURL := os.Getenv("PROMETHEUS_URL")
+	var prometheusClient *clients.PrometheusClient
 	if prometheusURL == "" {
-		logger.Info("⏭️ Prometheus disabled: PROMETHEUS_URL missing")
-		return
+		logger.Info("⚠️ Prometheus disabled: PROMETHEUS_URL missing. Metrics collection will be skipped.")
+	} else {
+		prometheusClient = clients.NewPrometheusClient(prometheusURL)
+		logger.Info("📡 Prometheus client ready", "url", prometheusURL)
 	}
-	prometheusClient := clients.NewPrometheusClient(prometheusURL)
-	logger.Info("📡 Prometheus client ready", "url", prometheusURL)
 
-	// Loki client
+	// Loki client 
 	lokiURL := os.Getenv("LOKI_URL")
+	var lokiClient *clients.LokiClient
 	if lokiURL == "" {
-		logger.Info("⏭️ Loki disabled: LOKI_URL missing")
-		return
+		logger.Info("⚠️ Loki disabled: LOKI_URL missing. Log collection will be skipped.")
+	} else {
+		lokiClient = clients.NewLokiClient(lokiURL)
+		logger.Info("📋 Loki client ready", "url", lokiURL)
 	}
-	lokiClient := clients.NewLokiClient(lokiURL)
-	logger.Info("📋 Loki client ready", "url", lokiURL)
 
 	// ArgoCD client
 	argoToken := os.Getenv("ARGOCD_TOKEN")
@@ -71,6 +73,28 @@ func main() {
 	aiClient := clients.NewAIClient(groqKey)
 	logger.Info("🤖 AI client ready", "model", "llama-3.1-8b-instant")
 
+	// Slack client (NEW)
+    slackEnabled := os.Getenv("SLACK_ENABLED") == "true"
+    slackToken := os.Getenv("SLACK_BOT_TOKEN")
+    slackChannel := os.Getenv("SLACK_CHANNEL_ID")
+    
+    var slackClient *clients.SlackClient
+    if slackEnabled {
+        if slackToken == "" || slackChannel == "" {
+            logger.Error(nil, "SLACK_BOT_TOKEN and SLACK_CHANNEL_ID required when SLACK_ENABLED=true")
+            os.Exit(1)
+        }
+        slackClient = clients.NewSlackClient(slackToken, slackChannel, slackEnabled)
+        logger.Info("💬 Slack client ready", "channel", slackChannel)
+        
+        // Send startup message
+        if err := slackClient.SendMessage("🚀 I.R.I.S. is now online and watching deployments!"); err != nil {
+            logger.Error(err, "Failed to send Slack startup message")
+        }
+    } else {
+        logger.Info("⏭️ Slack disabled — set SLACK_ENABLED=true to enable")
+    }
+
 	// IRIS controller
 	if err := (&controller.IrisReconciler{
 		Client:           mgr.GetClient(),
@@ -78,6 +102,7 @@ func main() {
 		Loki:             lokiClient,
 		ArgoCD:           argoClient, 
 		AI:               aiClient, 
+ 		Slack:            slackClient,
 		RollbackCooldown: 2 * time.Minute,
 		LastRollback:     make(map[string]time.Time),
 	}).SetupWithManager(mgr); err != nil {
