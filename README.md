@@ -25,7 +25,8 @@ Unlike traditional monitoring tools that only alert you about problems, I.R.I.S.
 - **🛡️ Rollback Cooldown** - Prevents rapid rollback loops during unstable rollouts
 - **📁 Modular Architecture** - Clean separation of concerns with client and controller packages
  
->Implementing rignt now: 
+>Implementing rignt now:
+- 📈 **Grafana Dashboard** - Monitoring and metric analysis dashboad
 - 💬 **Slack Notifications** - Real-time notifications for rollbacks and alerts
 
 ## 📋 Prerequisites
@@ -68,7 +69,7 @@ Unlike traditional monitoring tools that only alert you about problems, I.R.I.S.
   │            ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                │
   │            │ Kubernetes  │  │   Slack     │  │   Grafana   │                │
   │            │ Deployment  │  │   Alerts    │  │  Dashboard  │                │
-  │            │ (Rollback)  │  │  (working)  │  │             │                │
+  │            │ (Rollback)  │  │  (working)  │  │  (working)  │                │
   │            └─────────────┘  └─────────────┘  └─────────────┘                │
   └─────────────────────────────────────────────────────────────────────────────┘
 ```
